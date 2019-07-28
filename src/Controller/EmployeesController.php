@@ -3,7 +3,9 @@
 namespace App\Controller;
 
 use App\Entity\Employees;
+use App\Repository\EmployeesRepository;
 use App\Form\EmployeesType;
+use App\Service\CalculationService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,6 +17,7 @@ use Symfony\Component\Routing\Annotation\Route;
 class EmployeesController extends AbstractController
 {
     /**
+     * List employees
      * @Route("/", name="employees_index", methods={"GET"})
      */
     public function index(): Response
@@ -29,9 +32,10 @@ class EmployeesController extends AbstractController
     }
 
     /**
+     * Create new employee
      * @Route("/new", name="employees_new", methods={"GET","POST"})
      */
-    public function new(Request $request): Response
+    public function new(Request $request, CalculationService $calculation): Response
     {
         $employee = new Employees();
         $form = $this->createForm(EmployeesType::class, $employee);
@@ -42,6 +46,8 @@ class EmployeesController extends AbstractController
             $entityManager->persist($employee);
             $entityManager->flush();
 
+            $calculation->employeeCalculation($employee);
+
             return $this->redirectToRoute('employees_index');
         }
 
@@ -49,6 +55,33 @@ class EmployeesController extends AbstractController
             'employee' => $employee,
             'form' => $form->createView(),
         ]);
+    }
+
+    /**
+     * Export
+     * @Route("/export", name="employees_export", methods={"GET"})
+     */
+    public function export(): Response
+    {
+        $columns = ['Employee', 'Transport', 'Distance', 'Compensation', 'Date'];
+
+        $data = $this->getDoctrine()
+                    ->getRepository(Employees::class)
+                    ->getExport();
+
+        //put columns header to array
+        array_unshift($data, $columns);
+        $fp = fopen('php://output', 'w');
+        foreach ($data as $row) {
+            fputcsv($fp, $row);
+        }
+
+        $response = new Response();
+        $response->headers->set('Content-Type', 'text/csv');
+        //it's gonna output in a export.csv file
+        $response->headers->set('Content-Disposition', 'attachment; filename="export.csv"');
+
+        return $response;
     }
 
     /**
@@ -64,13 +97,15 @@ class EmployeesController extends AbstractController
     /**
      * @Route("/{id}/edit", name="employees_edit", methods={"GET","POST"})
      */
-    public function edit(Request $request, Employees $employee): Response
+    public function edit(Request $request, Employees $employee, CalculationService $calculation): Response
     {
         $form = $this->createForm(EmployeesType::class, $employee);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
             $this->getDoctrine()->getManager()->flush();
+
+            $calculation->employeeCalculation($employee);
 
             return $this->redirectToRoute('employees_index');
         }
@@ -94,4 +129,5 @@ class EmployeesController extends AbstractController
 
         return $this->redirectToRoute('employees_index');
     }
+
 }
