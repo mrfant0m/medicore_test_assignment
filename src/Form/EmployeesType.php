@@ -13,9 +13,9 @@ class EmployeesType extends AbstractType
     {
         $builder
             ->add('employee')
+            ->add('transport')
             ->add('distance')
             ->add('workdays')
-            ->add('transport')
         ;
     }
 
